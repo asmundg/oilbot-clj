@@ -1,0 +1,9 @@
+app:
+  build: .
+  environment:
+    SLACK_TOKEN:
+  links:
+    - redis:redis
+
+redis:
+  image: redis:3.0.7
