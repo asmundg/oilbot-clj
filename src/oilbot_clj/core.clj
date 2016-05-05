@@ -36,23 +36,41 @@
                          :channel channel
                          :text text}))
 
+(defn get-sortkey [name]
+  (Float/parseFloat (or (wcar* (car/get (str "sort-" name))) "400")))
+
+(defn set-sortkey! [name val]
+  (wcar* (car/set (str "sort-" name) val)))
+
+(defn handle-get []
+  (reverse (sort-by get-sortkey (wcar* (car/get "list")))))
+
 (defn handle-add! [item]
   (let [list (wcar* (car/get "list"))
         new-list (if (nil? list)
                    [item]
                    (conj list item))]
-    (wcar* (car/set "list" new-list))
-    new-list))
+    (do
+      (wcar* (car/set "list" new-list))
+      (handle-get))))
 
-(defn handle-reset [item]
+(defn handle-ordering! [first second]
+  (let [result (elo/update-r {:winner (get-sortkey first)
+                              :loser (get-sortkey second)})]
+    (set-sortkey! first (:winner result))
+    (set-sortkey! second (:loser result))
+    (handle-get)))
+
+(defn handle-reset! []
   (wcar* (car/set "list" []))
   "OK")
 
 (defn handle-message [text]
   (condp re-find text
-    #"add (.*)" :>> #(str (handle-add! (get % 1)))
-    #"list" (str (wcar* (car/get "list")))
-    #"clear" (str (wcar* (car/set "list" [])))
+    #"a(?:dd)? (.*)" :>> #(str (handle-add! (get % 1)))
+    #"o(?:rder)? (.*) (.*)" :>> #(str (handle-ordering! (get % 1) (get % 2)))
+    #"l(?:ist)?" (str (handle-get))
+    #"clear" (str (handle-reset!))
     #"ping" "pong"
     #"redis" (wcar* (car/ping))
     "I have no idea what you're talking about"))
