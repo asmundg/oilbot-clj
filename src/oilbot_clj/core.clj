@@ -4,7 +4,8 @@
    [cheshire.core :as json]
    [byte-streams :as bs]
    [manifold.stream :as s]
-   [taoensso.carmine :as car])
+   [taoensso.carmine :as car]
+   [oilbot-clj.elo :as elo])
   (:gen-class))
 
 (def id-counter (atom 0))
@@ -67,29 +68,31 @@
 
 (defn handle-message [text]
   (condp re-find text
-    #"a(?:dd)? (.*)" :>> #(str (handle-add! (get % 1)))
-    #"o(?:rder)? (.*) (.*)" :>> #(str (handle-ordering! (get % 1) (get % 2)))
-    #"l(?:ist)?" (str (handle-get))
-    #"clear" (str (handle-reset!))
-    #"ping" "pong"
-    #"redis" (wcar* (car/ping))
+    #"^a(?:dd)? (.*)" :>> #(str (handle-add! (get % 1)))
+    #"^o(?:rder)? (.*) (.*)" :>> #(str (handle-ordering! (get % 1) (get % 2)))
+    #"^l(?:ist)?" (str (handle-get))
+    #"^clear" (str (handle-reset!))
+    #"^ping" "pong"
+    #"^redis" (wcar* (car/ping))
     "I have no idea what you're talking about"))
 
 (defn keepalive [conn]
   (let [run (atom true)]
-    (future
-      (while @run
-        (do
-          (Thread/sleep 1000)
-          (s/put! conn (json/generate-string {:id (get-id) :type "ping"})))))
-    run))
+    (do
+      (future
+        (while @run
+          (do
+            (Thread/sleep 2000)
+            (s/put! conn (json/generate-string {:id (get-id) :type "ping"})))))
+      run)))
 
 (defn iterate-event-loop [conn]
   (let [msg (json/parse-string @(s/take! conn) true)]
+    (prn msg)
     (case (:type msg)
       "message" (s/put! conn (make-reply (:channel msg)
                                          (handle-message (:text msg))))
-      nil (throw (Exception. "Lost connection"))
+      nil (if (nil? msg) (throw (Exception. "Lost connection")))
       (prn (:type msg)))))
 
 (defn -main []
@@ -102,5 +105,6 @@
         (while true
           (iterate-event-loop conn))
         (catch Exception e
+          (prn e)
           (reset! keepalive-run false)
           (Thread/sleep 1000))))))
