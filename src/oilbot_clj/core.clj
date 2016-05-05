@@ -8,8 +8,10 @@
   (:gen-class))
 
 (def id-counter (atom 0))
+(def slack-token (System/getenv "SLACK_TOKEN"))
+(def redis-host (or (System/getenv "REDIS_HOST") "localhost"))
 
-(defmacro wcar* [& body] `(car/wcar {:pool {} :spec {:host "redis" :port 6379}} ~@body))
+(defmacro wcar* [& body] `(car/wcar {:pool {} :spec {:host redis-host :port 6379}} ~@body))
 
 (defn get-id []
   (swap! id-counter inc)
@@ -55,12 +57,32 @@
     #"redis" (wcar* (car/ping))
     "I have no idea what you're talking about"))
 
+(defn keepalive [conn]
+  (let [run (atom true)]
+    (future
+      (while @run
+        (do
+          (Thread/sleep 1000)
+          (s/put! conn (json/generate-string {:id (get-id) :type "ping"})))))
+    run))
+
+(defn iterate-event-loop [conn]
+  (let [msg (json/parse-string @(s/take! conn) true)]
+    (case (:type msg)
+      "message" (s/put! conn (make-reply (:channel msg)
+                                         (handle-message (:text msg))))
+      nil (throw (Exception. "Lost connection"))
+      (prn (:type msg)))))
+
 (defn -main []
-  (let [conn (-> (get-url (System/getenv "SLACK_TOKEN"))
-                 connect)]
-    (future (while true (do (Thread/sleep 1000) (s/put! conn (json/generate-string {:id (get-id) :type "ping"})))))
-    (while true
-      (let [msg (json/parse-string @(s/take! conn) true)]
-        (case (:type msg)
-          "message" (s/put! conn (make-reply (:channel msg) (handle-message (:text msg))))
-          (prn (:type msg)))))))
+  (while true
+    (prn "Starting")
+    (let [conn (-> (get-url slack-token)
+                   connect)
+          keepalive-run (keepalive conn)]
+      (try
+        (while true
+          (iterate-event-loop conn))
+        (catch Exception e
+          (reset! keepalive-run false)
+          (Thread/sleep 1000))))))
