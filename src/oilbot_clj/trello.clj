@@ -57,8 +57,8 @@
 
 (defn train! [l]
   (doseq [p (partition 2 1 (sort-by :pos l))]
-    (let [loser (:id (first p))
-          winner (:id (second p))
+    (let [loser (:name (first p))
+          winner (:name (second p))
           result (elo/update-r {:winner (cache/get-sortkey winner)
                                 :loser (cache/get-sortkey loser)})]
       (cache/set-sortkey! winner (:winner result))
@@ -70,7 +70,7 @@
     (set-sort! (:id c)
                (:checklist c)
                (:id i)
-               (cache/get-sortkey (:id i))))
+               (cache/get-sortkey (:name i))))
   (cache/set! (:id l) (get-list c)))
 
 ;; main dispatch
