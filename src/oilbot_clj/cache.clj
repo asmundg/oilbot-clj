@@ -21,26 +21,3 @@
 
 (defn set-sortkey! [name val]
   (wcar* (car/set (str "sort-" name) val)))
-
-(defn handle-get []
-  (reverse (sort-by get-sortkey (wcar* (car/get "list")))))
-
-(defn handle-add! [item]
-  (let [list (wcar* (car/get "list"))
-        new-list (if (nil? list)
-                   [item]
-                   (conj list item))]
-    (do
-      (wcar* (car/set "list" new-list))
-      (handle-get))))
-
-(defn handle-ordering! [first second]
-  (let [result (elo/update-r {:winner (get-sortkey first)
-                              :loser (get-sortkey second)})]
-    (set-sortkey! first (:winner result))
-    (set-sortkey! second (:loser result))
-    (handle-get)))
-
-(defn handle-reset! []
-  (wcar* (car/set "list" []))
-  "OK")

@@ -5,7 +5,8 @@
    [byte-streams :as bs]
    [manifold.stream :as s]
    [taoensso.carmine :as car]
-   [oilbot-clj.elo :as elo])
+   [oilbot-clj.elo :as elo]
+   [oilbot-clj.trello :as trello])
   (:gen-class))
 
 (def id-counter (atom 0))
@@ -73,6 +74,8 @@
     #"^l(?:ist)?" (str (handle-get))
     #"^clear" (str (handle-reset!))
     #"^ping" "pong"
+    #"^update" (do (trello/handle-all-cards!)
+                   "ok")
     #"^redis" (wcar* (car/ping))
     "I have no idea what you're talking about"))
 

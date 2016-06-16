@@ -2,9 +2,13 @@ app:
   build: .
   environment:
     SLACK_TOKEN:
+    TRELLO_KEY:
+    TRELLO_TOKEN:
     REDIS_HOST: redis
   links:
     - redis:redis
 
 redis:
   image: redis:3.0.7
+  ports:
+    - "6379:6379"
